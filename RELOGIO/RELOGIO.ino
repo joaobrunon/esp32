@@ -4,6 +4,7 @@
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 #include <EEPROM.h>  // Biblioteca para manipular EEPROM
+#include <WiFiClientSecure.h>
 
 // Configurações de Wi-Fi
 const char* ssid = "joao bruno";
@@ -16,7 +17,7 @@ const long utcOffsetInSeconds = -3 * 3600;  // UTC-3 para o Brasil
 // Configuração do pino do relé
 const int relePin = 23;
 int duracaoSirene = 5;  // Duração padrão em segundos
-
+int totalHorarios = 0;
 // Estrutura para armazenar horários
 struct Horario {
   int diaSemana;
@@ -24,7 +25,7 @@ struct Horario {
   int minuto;
 };
 Horario horarios[64];
-int totalHorarios = 0;
+
 
 // Controle do servidor web e NTP
 WebServer server(8080);
@@ -51,8 +52,13 @@ void handleAtivarRelogio();
 void handleDesativarRelogio();
 void verificarHorarios();
 void acionarSirene();
+void salvarHorarios();   // Declaração da função salvarHorarios
+void carregarHorarios(); // Declaração da função carregarHorarios
 void setup() {
   Serial.begin(9600);
+  EEPROM.begin(sizeof(totalHorarios) + sizeof(horarios) + sizeof(duracaoSirene));  // Inicializa EEPROM
+  carregarHorarios();  // Carrega os horários salvos na EEPROM
+
   
   // Conectar ao Wi-Fi
   WiFi.begin(ssid, password);
@@ -76,18 +82,16 @@ void setup() {
   logsWeb += "Servidor iniciado na porta 8080.<br>";
 
 // Definindo horários fixos (exemplo)
-  horarios[0] = { 1, 8, 0 };  // Segunda-feira, 08:00
-  horarios[1] = { 1, 12, 30 }; // Segunda-feira, 12:30
-  horarios[2] = { 3, 15, 45 }; // Quarta-feira, 15:45
-  horarios[3] = { 5, 18, 0 };  // Sexta-feira, 18:00
-  totalHorarios = 4;
+
+
 
   Serial.println("Horários programados:");
   for (int i = 0; i < totalHorarios; i++) {
     Serial.printf("Dia %d - %02d:%02d\n", horarios[i].diaSemana, horarios[i].hora, horarios[i].minuto);
   
  }
-}
+ }
+
 // Loop principal
 void loop() {
   server.handleClient();
@@ -149,6 +153,7 @@ void handleRoot() {
 
   String estadoSistema = relogioAtivo ? "Ativado" : "Desativado";
   pagina += "<p><strong>Estado do Sistema:</strong> " + estadoSistema + "</p>";
+  pagina += "<p><strong>Tempo de Duração da Sirene:</strong> " + String(duracaoSirene) + " segundos</p>";
 
   pagina += "<h2>Horários Programados</h2>";
   pagina += "<table><tr><th>Dia</th><th>Hora</th><th>Minuto</th></tr>";
@@ -267,6 +272,7 @@ void handleAdicionarHorario() {
     Serial.println(log);
     logsWeb += log + "<br>";
   }
+  salvarHorarios();
   server.send(200, "text/html", "<html><body><h1>Horário Adicionado!</h1><a href='/'>Voltar</a></body></html>");
 }
 
@@ -275,6 +281,7 @@ void handleLimparHorarios() {
   totalHorarios = 0;
   logsWeb += "Horários limpos.<br>";
   Serial.println("Horários limpos.");
+  salvarHorarios();  // Salva após limpar
   server.send(200, "text/html", "<html><body><h1>Horários Limpados!</h1><a href='/'>Voltar</a></body></html>");
 }
 
@@ -284,7 +291,9 @@ void handleConfigurarDuracao() {
   if (novaDuracao >= 1 && novaDuracao <= 60) {
     duracaoSirene = novaDuracao;
     logsWeb += "Duração configurada para " + String(novaDuracao) + " segundos.<br>";
-    Serial.println("Duração configurada.");
+    Serial.println("Duração configurada para " + String(duracaoSirene) + " segundos.");
+
+    salvarHorarios();  // Salva a nova duração na EEPROM
   }
   server.send(200, "text/html", "<html><body><h1>Duração Configurada!</h1><a href='/'>Voltar</a></body></html>");
 }
@@ -360,3 +369,25 @@ void acionarSirene() {
   Serial.println("Sirene desligada.");
 }
 
+void salvarHorarios() {
+  EEPROM.put(0, totalHorarios);  // Salva o total de horários
+  EEPROM.put(sizeof(totalHorarios), horarios);  // Salva os horários
+  EEPROM.put(sizeof(totalHorarios) + sizeof(horarios), duracaoSirene);  // Salva a duração da sirene
+  EEPROM.commit();  // Grava os dados na EEPROM
+  Serial.println("Horários e duração da sirene salvos na EEPROM.");
+}
+
+void carregarHorarios() {
+  EEPROM.get(0, totalHorarios);  // Carrega o total de horários
+  EEPROM.get(sizeof(totalHorarios), horarios);  // Carrega os horários
+  EEPROM.get(sizeof(totalHorarios) + sizeof(horarios), duracaoSirene);  // Carrega a duração da sirene
+
+  Serial.println("Horários e duração da sirene carregados da EEPROM:");
+  for (int i = 0; i < totalHorarios; i++) {
+    Serial.printf("Dia %d - %02d:%02d\n", 
+                  horarios[i].diaSemana, 
+                  horarios[i].hora, 
+                  horarios[i].minuto);
+  }
+  Serial.println("Duração da sirene: " + String(duracaoSirene) + " segundos");
+}
