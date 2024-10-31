@@ -7,6 +7,9 @@
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 
+unsigned long previousMillisPing = 0; // Controle do tempo para ping
+const long intervalPing = 60000;      // Intervalo de 1 minuto em milissegundos
+
 
 // Configurações de Wi-Fi
 const char* ssid = "joao bruno";
@@ -96,13 +99,36 @@ void setup() {
 
 // Loop principal
 void loop() {
-  server.handleClient();
+  server.handleClient();  // Priorize a resposta do servidor para não perder as requisições
   if (relogioAtivo) {
     timeClient.update();
     verificarHorarios();
   }
-}
 
+  unsigned long currentMillis = millis();
+
+  // Verifica se 1 minuto já se passou para o ping
+  if (currentMillis - previousMillisPing >= intervalPing) {
+    previousMillisPing = currentMillis;
+
+    // Cria um cliente HTTP e faz a requisição
+    if (WiFi.status() == WL_CONNECTED) {
+      HTTPClient http;
+      http.begin("https://hc-ping.com/185fb6c7-267d-4cc6-ad3e-e393cd215932");
+      int httpResponseCode = http.GET();
+
+      if (httpResponseCode > 0) {
+        Serial.printf("Requisição bem-sucedida, código HTTP: %d\n", httpResponseCode);
+      } else {
+        Serial.printf("Erro na requisição HTTP: %s\n", http.errorToString(httpResponseCode).c_str());
+      }
+
+      http.end(); // Fecha a conexão HTTP
+    } else {
+      Serial.println("WiFi não está conectado");
+    }
+  }
+}
 // Configuração das rotas do servidor web
 void configurarRotas() {
   server.on("/", handleRoot);

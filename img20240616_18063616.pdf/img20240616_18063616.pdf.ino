@@ -4,6 +4,7 @@
 #include <WebServer.h>
 #include <ESPmDNS.h>
 #include <Update.h>
+#include <HTTPClient.h> // Incluindo biblioteca para requisições HTTP
  
 /* Constantes - conexão wi-fi e webserver */
 const char* host = "esp32";
@@ -15,6 +16,8 @@ int contador_ms = 0;
  
 /* Webserver para se comunicar via browser com ESP32  */
 WebServer server(80);
+unsigned long previousMillis = 0; // Controle do tempo
+const long interval = 60000;      // Intervalo de 1 minuto em milissegundos
  
 /* Códigos da página que será aberta no browser 
    (quando comunicar via browser com o ESP32) 
@@ -179,14 +182,36 @@ void setup(void)
  
 void loop() 
 {
-    server.handleClient();c:\Users\bruno\Desktop\sketch_oct26c.ino.cpp
-    delay(1);
- 
-    contador_ms++;
- 
-    if (contador_ms >= 1000)
-    {    
-        Serial.println("Programa depois da atualizacao OTA");
-        contador_ms = 0;
+    server.handleClient();  // Priorize a resposta do servidor para não perder as requisições
+    
+    unsigned long currentMillis = millis();
+    
+    // Verifica se 1 minuto já se passou
+    if (currentMillis - previousMillis >= interval) 
+    {
+        previousMillis = currentMillis;
+        
+        // Cria um cliente HTTP e faz a requisição
+        if (WiFi.status() == WL_CONNECTED) 
+        {
+            HTTPClient http;
+            http.begin("https://hc-ping.com/185fb6c7-267d-4cc6-ad3e-e393cd215932");
+            int httpResponseCode = http.GET();
+            
+            if (httpResponseCode > 0) 
+            {
+                Serial.printf("Requisição bem-sucedida, código HTTP: %d\n", httpResponseCode);
+            } 
+            else 
+            {
+                Serial.printf("Erro na requisição HTTP: %s\n", http.errorToString(httpResponseCode).c_str());
+            }
+            
+            http.end(); // Fecha a conexão HTTP
+        } 
+        else 
+        {
+            Serial.println("WiFi não está conectado");
+        }
     }
 }
