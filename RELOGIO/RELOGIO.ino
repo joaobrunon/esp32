@@ -5,6 +5,8 @@
 #include <WiFiUdp.h>
 #include <EEPROM.h>  // Biblioteca para manipular EEPROM
 #include <WiFiClientSecure.h>
+#include <HTTPClient.h>
+
 
 // Configurações de Wi-Fi
 const char* ssid = "joao bruno";
