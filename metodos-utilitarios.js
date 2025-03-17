@@ -1,6 +1,4 @@
-window.jsPDF = window.jspdf.jsPDF;
-window.html2canvas = html2canvas;
-//**************************************************************************************
+
 
 var text = "-- Selecione --";
 function MultSeletores(id) {
